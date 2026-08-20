@@ -1,1 +1,0 @@
-function openLesson(title,text){document.getElementById('lessonTitle').textContent=title;document.getElementById('lessonText').textContent=text;document.getElementById('modal').classList.add('show')}function closeLesson(){document.getElementById('modal').classList.remove('show')}document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLesson()});
