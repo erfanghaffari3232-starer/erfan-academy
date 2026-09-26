@@ -1,41 +1,24 @@
 <?php
 /**
  * Plugin Name: Erfan Online Class
- * Description: سیستم کلاس آنلاین عرفان برای وردپرس - نسخه 1
- * Version: 1.0.0
+ * Description: سامانه کلاس آنلاین عرفان با دیتابیس، نقش مدرس/دانش‌آموز و ساخت خودکار برگه.
+ * Version: 2.0.0
  * Author: Erfan
  * License: GPL-2.0-or-later
  */
 if (!defined('ABSPATH')) exit;
-class Erfan_Online_Class {
- private $key='eoc_classes';
- function __construct(){add_shortcode('erfan_online_class',[$this,'shortcode']);add_action('wp_enqueue_scripts',[$this,'assets']);}
- function assets(){wp_enqueue_style('eoc-style',plugins_url('assets/style.css',__FILE__),[], '1.0.0');}
- function classes(){return get_option($this->key,[]);}
- function save($v){update_option($this->key,$v,false);}
- function shortcode(){
-  $classes=$this->classes();$notice='';
-  if(isset($_POST['eoc_action'])&&check_admin_referer('eoc_action','eoc_nonce')){
-   $a=sanitize_text_field(wp_unslash($_POST['eoc_action']));
-   if($a==='create'){ $n=sanitize_text_field(wp_unslash($_POST['class_name']??'')); if($n){$id='ERF-'.wp_rand(100,999);$u=wp_get_current_user();$classes[$id]=['name'=>$n,'teacher'=>$u->display_name?:'مدرس','lessons'=>[]];$this->save($classes);$notice='کلاس ساخته شد. کد ورود: '.$id;}}
-   if($a==='lesson'){ $id=sanitize_text_field(wp_unslash($_POST['class_id']??''));$l=sanitize_text_field(wp_unslash($_POST['lesson_name']??''));if($id&&$l&&isset($classes[$id])){$classes[$id]['lessons'][]=$l;$this->save($classes);$notice='درس اضافه شد.';}}
-  }
-  ob_start();?>
-  <div class="eoc" dir="rtl">
-   <div class="eoc-brand">🎓 Erfan <span>Online Class</span></div>
-   <p class="eoc-muted">سیستم کلاس آنلاین عرفان — نسخه ۱</p>
-   <?php if($notice):?><div class="eoc-notice"><?php echo esc_html($notice);?></div><?php endif;?>
-   <div class="eoc-grid">
-    <div class="eoc-card"><h3>🏫 ساخت کلاس</h3><form method="post"><?php wp_nonce_field('eoc_action','eoc_nonce');?><input type="hidden" name="eoc_action" value="create"><input name="class_name" required placeholder="نام کلاس"><button>ساخت کلاس</button></form></div>
-    <div class="eoc-card"><h3>📚 کلاس‌ها</h3>
-    <?php if(!$classes):?><p class="eoc-muted">هنوز کلاسی ساخته نشده.</p><?php else:foreach($classes as $id=>$c):?>
-     <div class="eoc-class"><strong><?php echo esc_html($c['name']);?></strong><div class="eoc-muted">مدرس: <?php echo esc_html($c['teacher']);?></div><div>کد: <b class="eoc-code"><?php echo esc_html($id);?></b></div>
-     <?php if(!empty($c['lessons'])):?><ul><?php foreach($c['lessons'] as $l):?><li>📘 <?php echo esc_html($l);?></li><?php endforeach;?></ul><?php endif;?>
-     <form method="post"><?php wp_nonce_field('eoc_action','eoc_nonce');?><input type="hidden" name="eoc_action" value="lesson"><input type="hidden" name="class_id" value="<?php echo esc_attr($id);?>"><input name="lesson_name" required placeholder="عنوان درس"><button>+ افزودن درس</button></form></div>
-    <?php endforeach;endif;?></div>
-   </div>
-   <div class="eoc-live"><h3>🎥 کلاس زنده</h3><p class="eoc-muted">اتصال ویدئویی در مرحله بعد اضافه می‌شود.</p></div>
-  </div><?php return ob_get_clean();
- }
+final class Erfan_Online_Class {
+ const V='2.0.0';
+ private $classes,$lessons,$members;
+ function __construct(){global $wpdb;$this->classes=$wpdb->prefix.'eoc_classes';$this->lessons=$wpdb->prefix.'eoc_lessons';$this->members=$wpdb->prefix.'eoc_members';add_shortcode('erfan_online_class',[$this,'shortcode']);add_action('wp_enqueue_scripts',[$this,'assets']);add_action('admin_post_eoc_action',[$this,'handle']);add_action('admin_post_nopriv_eoc_action',[$this,'handle']);}
+ static function activate(){global $wpdb;require_once ABSPATH.'wp-admin/includes/upgrade.php';$c=$wpdb->prefix.'eoc_classes';$l=$wpdb->prefix.'eoc_lessons';$m=$wpdb->prefix.'eoc_members';$cs=$wpdb->get_charset_collate();dbDelta("CREATE TABLE $c (id bigint(20) unsigned NOT NULL AUTO_INCREMENT,name varchar(190) NOT NULL,code varchar(20) NOT NULL,teacher_id bigint(20) unsigned NOT NULL,created_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY code(code),KEY teacher_id(teacher_id)) $cs;");dbDelta("CREATE TABLE $l (id bigint(20) unsigned NOT NULL AUTO_INCREMENT,class_id bigint(20) unsigned NOT NULL,title varchar(190) NOT NULL,content longtext NULL,created_at datetime NOT NULL,PRIMARY KEY(id),KEY class_id(class_id)) $cs;");dbDelta("CREATE TABLE $m (id bigint(20) unsigned NOT NULL AUTO_INCREMENT,class_id bigint(20) unsigned NOT NULL,user_id bigint(20) unsigned NOT NULL,joined_at datetime NOT NULL,PRIMARY KEY(id),UNIQUE KEY class_user(class_id,user_id),KEY user_id(user_id)) $cs;");add_role('eoc_teacher','مدرس',['read'=>true]);add_role('eoc_student','دانش‌آموز',['read'=>true]);$p=get_page_by_path('erfan-online-class');if(!$p){$id=wp_insert_post(['post_title'=>'کلاس آنلاین عرفان','post_name'=>'erfan-online-class','post_content'=>'[erfan_online_class]','post_status'=>'publish','post_type'=>'page']);if(!is_wp_error($id))update_option('eoc_page_id',$id);}else update_option('eoc_page_id',$p->ID);}
+ function assets(){wp_enqueue_style('eoc-style',plugins_url('assets/style.css',__FILE__),[],self::V);}
+ function handle(){if(!isset($_POST['eoc_nonce'])||!wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['eoc_nonce'])),'eoc_action'))wp_die('درخواست نامعتبر است.');if(!is_user_logged_in())wp_die('ابتدا وارد شوید.');$a=sanitize_key($_POST['eoc_action']??'');$uid=get_current_user_id();global $wpdb;$msg='';
+ if($a==='create'&&(current_user_can('manage_options')||current_user_can('eoc_teacher'))){$n=sanitize_text_field(wp_unslash($_POST['class_name']??''));if($n){do{$code='ERF-'.wp_rand(1000,9999);}while($wpdb->get_var($wpdb->prepare("SELECT id FROM {$this->classes} WHERE code=%s",$code)));$wpdb->insert($this->classes,['name'=>$n,'code'=>$code,'teacher_id'=>$uid,'created_at'=>current_time('mysql')],['%s','%s','%d','%s']);$msg='کلاس ساخته شد؛ کد ورود: '.$code;}}
+ elseif($a==='join'){$code=strtoupper(sanitize_text_field(wp_unslash($_POST['class_code']??'')));$class=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->classes} WHERE code=%s",$code));if($class){$wpdb->query($wpdb->prepare("INSERT IGNORE INTO {$this->members} (class_id,user_id,joined_at) VALUES (%d,%d,%s)",$class->id,$uid,current_time('mysql')));$msg='با موفقیت وارد کلاس شدید.';}else $msg='کد کلاس پیدا نشد.';}
+ elseif($a==='lesson'){$id=absint($_POST['class_id']??0);$class=$wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->classes} WHERE id=%d",$id));if($class&&((int)$class->teacher_id===$uid||current_user_can('manage_options'))){$t=sanitize_text_field(wp_unslash($_POST['lesson_title']??''));$co=wp_kses_post(wp_unslash($_POST['lesson_content']??''));if($t)$wpdb->insert($this->lessons,['class_id'=>$id,'title'=>$t,'content'=>$co,'created_at'=>current_time('mysql')],['%d','%s','%s','%s']);$msg='درس اضافه شد.';}}
+ $url=wp_get_referer()?:home_url('/');if($msg)$url=add_query_arg('eoc_msg',rawurlencode($msg),$url);wp_safe_redirect($url);exit;}
+ function shortcode(){if(!is_user_logged_in())return '<div class="eoc" dir="rtl"><div class="eoc-hero"><b>🎓 Erfan Online Class</b><span>سامانه کلاس آنلاین</span></div><div class="eoc-box"><h2>ورود لازم است</h2><p>برای استفاده ابتدا وارد حساب وردپرس شوید.</p><a class="eoc-btn" href="'.esc_url(wp_login_url(get_permalink())).'">ورود به حساب</a></div></div>';global $wpdb;$uid=get_current_user_id();$u=wp_get_current_user();$teacher=current_user_can('manage_options')||current_user_can('eoc_teacher');$my=$teacher?$wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->classes} WHERE teacher_id=%d ORDER BY id DESC",$uid)):$wpdb->get_results($wpdb->prepare("SELECT c.* FROM {$this->classes} c INNER JOIN {$this->members} m ON m.class_id=c.id WHERE m.user_id=%d ORDER BY c.id DESC",$uid));$msg=isset($_GET['eoc_msg'])?sanitize_text_field(wp_unslash($_GET['eoc_msg'])):'';
+ ob_start();?><div class="eoc" dir="rtl"><div class="eoc-hero"><div><b>🎓 Erfan Online Class</b><span>سامانه کلاس آنلاین واقعی وردپرس</span></div><a href="<?php echo esc_url(wp_logout_url(get_permalink()));?>">خروج</a></div><?php if($msg):?><div class="eoc-notice"><?php echo esc_html($msg);?></div><?php endif;?><div class="eoc-welcome">سلام <?php echo esc_html($u->display_name?:$u->user_login);?> 👋</div><div class="eoc-grid"><?php if($teacher):?><div class="eoc-box"><h3>🏫 ساخت کلاس</h3><form method="post" action="<?php echo esc_url(admin_url('admin-post.php'));?>"><?php wp_nonce_field('eoc_action','eoc_nonce');?><input type="hidden" name="action" value="eoc_action"><input type="hidden" name="eoc_action" value="create"><input name="class_name" required placeholder="نام کلاس"><button class="eoc-btn">ساخت کلاس</button></form></div><?php else:?><div class="eoc-box"><h3>🔑 ورود به کلاس</h3><form method="post" action="<?php echo esc_url(admin_url('admin-post.php'));?>"><?php wp_nonce_field('eoc_action','eoc_nonce');?><input type="hidden" name="action" value="eoc_action"><input type="hidden" name="eoc_action" value="join"><input name="class_code" required placeholder="مثلاً ERF-1234"><button class="eoc-btn">ورود به کلاس</button></form></div><?php endif;?></div><div class="eoc-box"><h3>📚 کلاس‌های من</h3><?php if(!$my):?><p class="eoc-muted">هنوز کلاسی وجود ندارد.</p><?php else:foreach($my as $c):$ls=$wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->lessons} WHERE class_id=%d ORDER BY id DESC",$c->id));?><article class="eoc-class"><h3><?php echo esc_html($c->name);?></h3><div>کد کلاس: <b class="eoc-code"><?php echo esc_html($c->code);?></b></div><?php if($teacher):?><details><summary>➕ افزودن درس</summary><form method="post" action="<?php echo esc_url(admin_url('admin-post.php'));?>"><?php wp_nonce_field('eoc_action','eoc_nonce');?><input type="hidden" name="action" value="eoc_action"><input type="hidden" name="eoc_action" value="lesson"><input type="hidden" name="class_id" value="<?php echo (int)$c->id;?>"><input name="lesson_title" required placeholder="عنوان درس"><textarea name="lesson_content" placeholder="توضیحات درس"></textarea><button class="eoc-btn">افزودن درس</button></form></details><?php endif;?><div><?php foreach($ls as $l):?><div class="eoc-lesson"><b>📘 <?php echo esc_html($l->title);?></b><?php echo $l->content?wpautop(wp_kses_post($l->content)):'';?></div><?php endforeach;if(!$ls)echo '<p class="eoc-muted">هنوز درسی اضافه نشده.</p>';?></div></article><?php endforeach;endif;?></div><div class="eoc-live"><h3>🎥 کلاس زنده</h3><p>آماده اتصال به BigBlueButton یا سرویس ویدئویی شما.</p></div></div><?php return ob_get_clean();}
 }
-new Erfan_Online_Class();
+register_activation_hook(__FILE__,['Erfan_Online_Class','activate']);new Erfan_Online_Class();
