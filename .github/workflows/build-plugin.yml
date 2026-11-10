@@ -1,0 +1,22 @@
+name: Build WordPress plugin ZIP
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'wordpress-plugin/erfan-academy-portal/**'
+      - '.github/workflows/build-plugin.yml'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package plugin
+        run: |
+          mkdir -p dist
+          cd wordpress-plugin
+          zip -r ../dist/erfan-academy-online-2.0.0.zip erfan-academy-portal
+      - uses: actions/upload-artifact@v4
+        with:
+          name: erfan-academy-online-2.0.0
+          path: dist/erfan-academy-online-2.0.0.zip
+          retention-days: 14
