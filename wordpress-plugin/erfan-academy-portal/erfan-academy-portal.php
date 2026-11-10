@@ -1,97 +1,94 @@
 <?php
 /**
- * Plugin Name: Erfan Academy Portal
- * Description: Bilingual learning portal with separate student, teacher, administrator and support dashboards.
- * Version: 1.0.0
+ * Plugin Name: Erfan Academy Online
+ * Description: Online-only learning platform: courses, enrollment, role dashboards and integration settings.
+ * Version: 2.0.0
  * Author: Erfan Tooltips
- * Text Domain: erfan-academy-portal
+ * Text Domain: erfan-academy-online
  */
 if (!defined('ABSPATH')) exit;
 
-final class Erfan_Academy_Portal {
- const VERSION = '1.0.0';
- const SHORTCODE = 'erfan_academy_portal';
- public function __construct() {
-  add_action('init', [$this,'register_roles']);
-  add_shortcode(self::SHORTCODE, [$this,'render_portal']);
-  add_action('admin_menu', [$this,'admin_menu']);
-  add_action('admin_post_eap_save_settings', [$this,'save_settings']);
-  add_action('wp_enqueue_scripts', [$this,'assets']);
+final class Erfan_Academy_Online {
+ const VERSION='2.0.0';
+ public function __construct(){
+  add_action('init',[$this,'roles']);
+  add_action('init',[$this,'types']);
+  add_action('add_meta_boxes',[$this,'meta_boxes']);
+  add_action('save_post_eao_course',[$this,'save_course'],10,2);
+  add_shortcode('erfan_academy_portal',[$this,'portal']);
+  add_shortcode('erfan_academy_courses',[$this,'catalog']);
+  add_shortcode('erfan_academy_my_courses',[$this,'my_courses']);
+  add_action('init',[$this,'handle_forms']);
+  add_action('admin_menu',[$this,'admin_menu']);
+  add_action('admin_init',[$this,'settings']);
+  add_action('wp_enqueue_scripts',[$this,'assets']);
  }
- public function register_roles() {
-  add_role('eap_student', 'دانش‌آموز', ['read'=>true]);
-  add_role('eap_teacher', 'مدرس', ['read'=>true, 'upload_files'=>true]);
-  add_role('eap_support', 'پشتیبانی', ['read'=>true]);
+ public function roles(){
+  add_role('eao_student','دانش‌آموز',['read'=>true]);
+  add_role('eao_teacher','مدرس',['read'=>true, 'upload_files'=>true]);
+  add_role('eao_support','پشتیبانی',['read'=>true]);
  }
- public function assets() {
-  if (!is_singular()) return;
-  global $post;
-  if (!$post || !has_shortcode($post->post_content, self::SHORTCODE)) return;
-  wp_register_style('eap-portal', false, [], self::VERSION);
-  wp_enqueue_style('eap-portal');
-  wp_add_inline_style('eap-portal', $this->css());
-  wp_register_script('eap-portal', '', [], self::VERSION, true);
-  wp_enqueue_script('eap-portal');
-  wp_add_inline_script('eap-portal', $this->js());
+ public function types(){
+  register_post_type('eao_course',['labels'=>['name'=>'دوره‌های آنلاین','singular_name'=>'دوره آنلاین','add_new_item'=>'افزودن دوره آنلاین'],'public'=>true,'show_in_rest'=>true,'menu_icon'=>'dashicons-video-alt3','supports'=>['title','editor','thumbnail','author'],'has_archive'=>true,'rewrite'=>['slug'=>'online-courses']]);
+  register_post_type('eao_booking',['labels'=>['name'=>'ثبت‌نام‌ها','singular_name'=>'ثبت‌نام'],'public'=>false,'show_ui'=>true,'show_in_menu'=>true,'menu_icon'=>'dashicons-clipboard','supports'=>['title','author']]);
  }
- private function css() {
- return '.eap{--navy:#111d38;--blue:#425ff5;--teal:#18b6aa;direction:rtl;font-family:inherit;color:#18233d;background:#f4f6fb;border-radius:22px;overflow:hidden;display:grid;grid-template-columns:245px 1fr;min-height:690px;box-shadow:0 18px 55px #17264a18}.eap *{box-sizing:border-box}.eap-side{background:var(--navy);color:#fff;padding:24px 16px}.eap-brand{font-size:19px;font-weight:800;padding:8px 10px 24px}.eap-brand small{display:block;font-size:11px;color:#aab7d2;font-weight:400}.eap-nav{display:grid;gap:6px;margin-top:22px}.eap-nav button{background:transparent;border:0;color:#cbd5e8;text-align:right;padding:12px;border-radius:10px;cursor:pointer;font:inherit;font-size:13px}.eap-nav button.active,.eap-nav button:hover{background:#ffffff19;color:white}.eap-main{padding:25px;min-width:0}.eap-top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:24px}.eap-muted{color:#7e89a0;font-size:12px}.eap-title{font-size:25px;font-weight:800;margin:0 0 7px}.eap-switch{display:flex;gap:6px;flex-wrap:wrap}.eap button,.eap input,.eap select{font:inherit}.eap-btn{border:0;background:var(--blue);color:#fff;padding:10px 15px;border-radius:10px;cursor:pointer}.eap-btn.secondary{background:#edf0ff;color:var(--blue)}.eap-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}.eap-card{background:#fff;border:1px solid #e8ebf3;border-radius:15px;padding:17px;min-width:0}.eap-card small{display:block;color:#7e89a0;font-size:11px}.eap-number{font-size:26px;font-weight:800;margin-top:8px}.eap-lower{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-top:15px}.eap-row{display:flex;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid #edf0f5;font-size:13px}.eap-row:last-child{border:0}.eap-progress{height:6px;background:#edf0f6;border-radius:9px;margin-top:7px;overflow:hidden}.eap-progress i{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--teal))}.eap-auth{max-width:460px;margin:35px auto;background:#fff;border:1px solid #e8ebf3;border-radius:18px;padding:25px}.eap-field{display:grid;gap:6px;margin:13px 0}.eap-field label{font-size:12px;color:#58637b}.eap-field input,.eap-field select{width:100%;border:1px solid #dfe4ef;border-radius:10px;padding:12px;background:#fff}.eap-alert{padding:12px;border-radius:10px;background:#fff4df;color:#79520b;margin:12px 0;font-size:12px}.eap-lang{border:1px solid #e2e7f0;background:white;border-radius:9px;padding:7px 10px;cursor:pointer}.eap-table{width:100%;border-collapse:collapse;font-size:12px}.eap-table td,.eap-table th{text-align:right;padding:11px;border-bottom:1px solid #edf0f5}.eap-table th{color:#7e89a0;font-weight:500}.eap-hidden{display:none!important}@media(max-width:850px){.eap{grid-template-columns:1fr}.eap-side{padding:14px}.eap-brand{padding:4px}.eap-nav{display:flex;overflow:auto;margin-top:10px}.eap-nav button{white-space:nowrap}.eap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.eap-lower{grid-template-columns:1fr}}@media(max-width:480px){.eap-main{padding:15px}.eap-title{font-size:20px}.eap-grid{gap:8px}.eap-card{padding:12px}}';
+ public function meta_boxes(){add_meta_box('eao_course_info','اطلاعات دوره آنلاین',[$this,'course_box'],'eao_course','normal','high');}
+ public function course_box($post){
+  wp_nonce_field('eao_save_course','eao_course_nonce');
+  $fields=['level'=>'سطح دوره','price'=>'قیمت (تومان)','capacity'=>'ظرفیت','start'=>'تاریخ شروع','end'=>'تاریخ پایان','schedule'=>'روز و ساعت برگزاری','teacher'=>'نام مدرس','meeting'=>'لینک اتاق آنلاین (اختیاری)'];
+  echo '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">';
+  foreach($fields as $key=>$label){$v=get_post_meta($post->ID,'_eao_'.$key,true); echo '<label>'.esc_html($label).'<input style="display:block;width:100%;margin-top:5px" name="eao_'.$key.'" value="'.esc_attr($v).'"></label>';}
+  echo '</div><p>این سامانه فقط دوره آنلاین می‌پذیرد. لینک اتاق جلسه فقط برای کاربران ثبت‌نام‌شده نمایش داده می‌شود.</p>';
  }
- private function js() {
- return "document.addEventListener('click',function(e){var b=e.target.closest('[data-eap-lang]');if(!b)return;var root=b.closest('.eap');var en=b.dataset.eapLang==='en';root.querySelectorAll('[data-fa][data-en]').forEach(function(n){n.textContent=en?n.dataset.en:n.dataset.fa});root.dir=en?'ltr':'rtl';root.querySelectorAll('[data-eap-lang]').forEach(function(x){x.classList.toggle('active',x===b)});});";
+ public function save_course($post_id,$post){
+  if(!isset($_POST['eao_course_nonce'])||!wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['eao_course_nonce'])),'eao_save_course')||defined('DOING_AUTOSAVE')&&DOING_AUTOSAVE||!current_user_can('edit_post',$post_id))return;
+  foreach(['level','price','capacity','start','end','schedule','teacher','meeting'] as $k){if(isset($_POST['eao_'.$k])) update_post_meta($post_id,'_eao_'.$k,sanitize_text_field(wp_unslash($_POST['eao_'.$k])));}
  }
- private function t($fa,$en) { return '<span data-fa="'.esc_attr($fa).'" data-en="'.esc_attr($en).'">'.esc_html($fa).'</span>'; }
- public function render_portal() {
-  if (!is_user_logged_in()) return $this->auth_view();
-  $u=wp_get_current_user(); $role=$this->user_role($u);
-  $menus=[
-   'eap_student'=>['نمای کلی','دوره‌های من','کلاس‌های آنلاین','آزمون‌ها و تکالیف','پیشرفت تحصیلی','گواهی‌ها','پرداخت‌ها','پشتیبانی'],
-   'eap_teacher'=>['نمای کلی','مدیریت دوره‌ها','کلاس‌های زنده','هنرجویان','حضور و غیاب','تکالیف و آزمون‌ها','گزارش عملکرد','پیام‌ها'],
-   'administrator'=>['نمای کلی','مدیریت کاربران','مدیریت مدرس‌ها','دوره‌ها','مالی و پرداخت‌ها','گزارش‌ها','تنظیمات','امنیت و دسترسی'],
-   'eap_support'=>['نمای کلی','تیکت‌های جدید','در انتظار پاسخ','گفت‌وگوها','مشکلات پرداخت','راهنمای کاربران','گزارش پاسخ‌گویی']
-  ];
-  $menu=$menus[$role]??$menus['eap_student'];
-  $labels=['eap_student'=>['داشبورد دانش‌آموز','Student dashboard'],'eap_teacher'=>['داشبورد مدرس','Teacher dashboard'],'administrator'=>['پنل مدیریت','Administration'],'eap_support'=>['مرکز پشتیبانی','Support center']];
-  $title=$labels[$role]??$labels['eap_student'];
-  ob_start(); ?>
-  <div class="eap" dir="rtl">
-   <aside class="eap-side"><div class="eap-brand">Erfan Tooltips<small>آکادمی آموزش هوشمند</small></div><div class="eap-muted" style="color:#8e9dbb">منوی اختصاصی</div><nav class="eap-nav"><?php foreach($menu as $i=>$item): ?><button type="button" class="<?php echo $i===0?'active':''; ?>" data-eap-menu="<?php echo esc_attr($item); ?>"><?php echo esc_html($item); ?></button><?php endforeach; ?></nav><p style="font-size:11px;color:#91a0bd;margin-top:35px">© Erfan Tooltips</p></aside>
-   <main class="eap-main"><header class="eap-top"><div><h2 class="eap-title"><?php echo esc_html($title[0]); ?></h2><div class="eap-muted"><?php echo esc_html($u->display_name); ?>، خوش آمدی.</div></div><div><button class="eap-lang" data-eap-lang="fa">فارسی</button> <button class="eap-lang" data-eap-lang="en">English</button> <a class="eap-btn secondary" href="<?php echo esc_url(wp_logout_url(get_permalink())); ?>">خروج</a></div></header>
-   <section class="eap-grid"><?php
-    $stats=$role==='eap_teacher'? [['هنرجویان فعال','Active learners','—'],['دوره‌های من','My courses','—'],['جلسات این هفته','Sessions this week','—'],['درآمد','Revenue','—']] : ($role==='administrator'?[['کل کاربران','Total users',count_users()['total_users']],['مدرس‌ها','Teachers','—'],['دوره‌ها','Courses','—'],['تیکت‌های باز','Open tickets','—']]:($role==='eap_support'?[['تیکت‌های جدید','New tickets','—'],['در انتظار پاسخ','Awaiting reply','—'],['حل‌شده امروز','Resolved today','—'],['رضایت کاربران','User satisfaction','—']]:[['دوره‌های فعال','Active courses','—'],['کلاس‌های پیش‌رو','Upcoming classes','—'],['تکالیف باقی‌مانده','Pending tasks','—'],['پیشرفت کلی','Overall progress','—']]));
-    foreach($stats as $s): ?><div class="eap-card"><small><?php echo $this->t($s[0],$s[1]); ?></small><div class="eap-number"><?php echo esc_html($s[2]); ?></div></div><?php endforeach; ?>
-   </section><section class="eap-lower"><div class="eap-card"><h3><?php echo $this->t('فضای کاری من','My workspace'); ?></h3><div class="eap-row"><span><?php echo $this->t('مدیریت و مشاهده اطلاعات','Manage and view your information'); ?></span><span>›</span></div><div class="eap-row"><span><?php echo $this->t('فعالیت‌های اخیر','Recent activity'); ?></span><span>›</span></div><div class="eap-row"><span><?php echo $this->t('تنظیمات حساب','Account settings'); ?></span><span>›</span></div></div><div class="eap-card"><h3><?php echo $this->t('دسترسی سریع','Quick access'); ?></h3><p class="eap-muted"><?php echo $this->t('امکانات هر نقش به‌صورت جداگانه نمایش داده می‌شود.','Features are separated by user role.'); ?></p><a class="eap-btn" href="<?php echo esc_url(admin_url('profile.php')); ?>"><?php echo $this->t('ویرایش حساب','Edit profile'); ?></a></div></section>
-   <div class="eap-alert"><?php echo $this->t('این نسخه زیرساخت پنل و نقش‌ها را فراهم می‌کند؛ مدیریت واقعی دوره، پرداخت و کلاس زنده در مرحله اتصال به سامانه‌های مربوطه فعال می‌شود.','This release provides the portal and role foundation. Course operations, payments and live classes require integration with their respective services.'); ?></div></main></div>
-  <?php return ob_get_clean();
+ public function assets(){
+  wp_register_style('eao-style',false,[],self::VERSION);wp_enqueue_style('eao-style');wp_add_inline_style('eao-style',$this->css());
  }
- private function user_role($user) {
-  foreach(['administrator','eap_teacher','eap_support','eap_student'] as $r) if(in_array($r,(array)$user->roles,true)) return $r;
-  return 'eap_student';
- }
- private function auth_view() {
-  $msg='';
-  if(isset($_POST['eap_action']) && $_POST['eap_action']==='login' && isset($_POST['_wpnonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])),'eap_login')) {
-   $creds=['user_login'=>sanitize_text_field(wp_unslash($_POST['username']??'')),'user_password'=>wp_unslash($_POST['password']??''),'remember'=>!empty($_POST['remember'])];
-   $user=wp_signon($creds,is_ssl());
-   if(is_wp_error($user)) $msg='اطلاعات ورود صحیح نیست. / Invalid login details.';
-   else { wp_safe_redirect(get_permalink()); exit; }
+ private function css(){return '.eao{direction:rtl;font-family:inherit;color:#17233e;background:#f4f6fb;border-radius:20px;padding:22px}.eao *{box-sizing:border-box}.eao-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px}.eao h2{font-size:24px;margin:0}.eao-sub{color:#77839b;font-size:13px;margin-top:6px}.eao-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:15px}.eao-card{background:#fff;border:1px solid #e6eaf2;border-radius:15px;padding:17px;min-width:0}.eao-card h3{font-size:17px;margin:0 0 10px}.eao-meta{display:grid;gap:7px;color:#64718a;font-size:12px;margin:12px 0}.eao-btn{display:inline-block;border:0;border-radius:10px;background:#435cf5;color:#fff!important;text-decoration:none;padding:10px 15px;cursor:pointer;font:inherit}.eao-btn.alt{background:#e9edff;color:#344bd5!important}.eao-input{width:100%;border:1px solid #dce2ed;border-radius:9px;padding:11px;background:white}.eao-field{display:grid;gap:6px;margin:12px 0;font-size:13px}.eao-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:15px 0}.eao-stat{background:#fff;border:1px solid #e6eaf2;border-radius:13px;padding:15px}.eao-stat strong{display:block;font-size:23px;margin-top:6px}.eao-alert{padding:12px;background:#fff4dc;border-radius:10px;color:#77520a;font-size:13px;margin:12px 0}.eao-success{padding:12px;background:#e6f8f0;border-radius:10px;color:#176b4c;margin:12px 0}.eao-table{width:100%;border-collapse:collapse;background:white}.eao-table td,.eao-table th{padding:11px;border-bottom:1px solid #edf0f5;text-align:right;font-size:13px}@media(max-width:600px){.eao{padding:14px}.eao h2{font-size:20px}}';}
+ public function handle_forms(){
+  if(!isset($_POST['eao_action']))return;
+  if(!is_user_logged_in())return;
+  if($_POST['eao_action']==='enroll'){
+   if(!isset($_POST['_wpnonce'])||!wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])),'eao_enroll'))return;
+   $course=absint($_POST['course_id']??0);$p=get_post($course);
+   if(!$p||$p->post_type!=='eao_course'||$p->post_status!=='publish')return;
+   $capacity=(int)get_post_meta($course,'_eao_capacity',true);
+   $count=$this->enrollment_count($course);
+   if($capacity>0&&$count>=$capacity){$this->notice('ظرفیت این دوره تکمیل شده است.','error');return;}
+   $existing=get_posts(['post_type'=>'eao_booking','author'=>get_current_user_id(),'meta_key'=>'_eao_course','meta_value'=>$course,'numberposts'=>1]);
+   if($existing){$this->notice('قبلاً برای این دوره ثبت‌نام کرده‌اید.','error');return;}
+   $id=wp_insert_post(['post_type'=>'eao_booking','post_status'=>'publish','post_title'=>'ثبت‌نام: '.$p->post_title,'post_author'=>get_current_user_id()]);
+   if($id&&!is_wp_error($id)){update_post_meta($id,'_eao_course',$course);update_post_meta($id,'_eao_booking_status','pending_payment');$this->notice('درخواست ثبت‌نام ثبت شد. پس از تأیید پرداخت، دسترسی دوره فعال می‌شود.','success');}
   }
-  if(isset($_POST['eap_action']) && $_POST['eap_action']==='register' && isset($_POST['_wpnonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])),'eap_register')) {
-   $email=sanitize_email(wp_unslash($_POST['email']??'')); $username=sanitize_user(wp_unslash($_POST['username']??'')); $pass=(string)wp_unslash($_POST['password']??'');
-   if(!get_option('users_can_register')) $msg='ثبت‌نام عمومی در تنظیمات وردپرس غیرفعال است. / Public registration is disabled.';
-   elseif(!$email || !is_email($email) || !$username || strlen($pass)<12) $msg='ایمیل، نام کاربری معتبر و رمز حداقل ۱۲ کاراکتری لازم است. / Valid email, username and 12-character password required.';
-   elseif(username_exists($username)||email_exists($email)) $msg='نام کاربری یا ایمیل قبلاً ثبت شده است. / Username or email already exists.';
-   else { $id=wp_create_user($username,$pass,$email); if(is_wp_error($id)) $msg='ثبت‌نام انجام نشد. / Registration failed.'; else { $u=new WP_User($id); $u->set_role('eap_student'); $msg='حساب ساخته شد؛ اکنون وارد شوید. / Account created. Please sign in.'; } }
-  }
-  ob_start(); ?><div class="eap" dir="rtl"><main class="eap-main"><div class="eap-auth"><div class="eap-brand" style="color:#17233e">Erfan Tooltips<small style="color:#7e89a0">آکادمی آموزش هوشمند</small></div><div class="eap-top"><h2><?php echo $this->t('ورود به حساب','Sign in'); ?></h2><div><button class="eap-lang" data-eap-lang="fa">فا</button> <button class="eap-lang" data-eap-lang="en">EN</button></div></div><?php if($msg): ?><div class="eap-alert"><?php echo esc_html($msg); ?></div><?php endif; ?>
-  <form method="post"><input type="hidden" name="eap_action" value="login"><?php wp_nonce_field('eap_login'); ?><div class="eap-field"><label><?php echo $this->t('نام کاربری یا ایمیل','Username or email'); ?></label><input name="username" required autocomplete="username"></div><div class="eap-field"><label><?php echo $this->t('رمز عبور','Password'); ?></label><input type="password" name="password" required autocomplete="current-password"></div><label style="font-size:12px"><input type="checkbox" name="remember" value="1"> <?php echo $this->t('مرا به خاطر بسپار','Remember me'); ?></label><p><button class="eap-btn" type="submit"><?php echo $this->t('ورود','Sign in'); ?></button></p></form>
-  <hr style="border:0;border-top:1px solid #edf0f5;margin:20px 0"><h3><?php echo $this->t('ساخت حساب دانش‌آموزی','Create student account'); ?></h3><form method="post"><input type="hidden" name="eap_action" value="register"><?php wp_nonce_field('eap_register'); ?><div class="eap-field"><label><?php echo $this->t('نام کاربری','Username'); ?></label><input name="username" required autocomplete="username"></div><div class="eap-field"><label><?php echo $this->t('ایمیل','Email'); ?></label><input type="email" name="email" required autocomplete="email"></div><div class="eap-field"><label><?php echo $this->t('رمز عبور (حداقل ۱۲ نویسه)','Password (12 characters minimum)'); ?></label><input type="password" name="password" minlength="12" required autocomplete="new-password"></div><button class="eap-btn secondary" type="submit"><?php echo $this->t('ثبت‌نام دانش‌آموز','Register as student'); ?></button></form><p class="eap-muted"><?php echo $this->t('حساب مدرس و پشتیبان فقط توسط مدیر ساخته یا ارتقا داده می‌شود.','Teacher and support accounts are assigned by an administrator.'); ?></p></div></main></div><?php return ob_get_clean();
  }
- public function admin_menu() { add_menu_page('Erfan Academy Portal','Erfan Academy','manage_options','eap-settings',[$this,'settings_page'],'dashicons-welcome-learn-more',58); }
- public function settings_page() {
-  if(!current_user_can('manage_options')) return;
-  echo '<div class="wrap"><h1>Erfan Academy Portal</h1><p>برای نمایش پرتال، برگه‌ای بسازید و شورت‌کد زیر را در آن قرار دهید:</p><code>['.esc_html(self::SHORTCODE).']</code><h2>مدیریت نقش‌ها</h2><p>برای تعیین نقش کاربر به مسیر کاربران ← همه کاربران بروید. نقش‌های افزونه: eap_student، eap_teacher و eap_support.</p><p>ثبت‌نام عمومی وردپرس را در تنظیمات ← عمومی فعال کنید تا ثبت‌نام دانش‌آموزی فعال شود.</p><p><strong>نکته امنیتی:</strong> مدیر و پشتیبان/مدرس باید فقط از سوی مدیر سایت ایجاد شوند.</p></div>';
+ private function notice($message,$type){set_transient('eao_notice_'.get_current_user_id(),['message'=>$message,'type'=>$type],60);}
+ private function show_notice(){ $n=get_transient('eao_notice_'.get_current_user_id());if($n){delete_transient('eao_notice_'.get_current_user_id());echo '<div class="eao-'.($n['type']==='success'?'success':'alert').'">'.esc_html($n['message']).'</div>';}}
+ private function enrollment_count($course){$q=new WP_Query(['post_type'=>'eao_booking','post_status'=>'publish','meta_key'=>'_eao_course','meta_value'=>$course,'fields'=>'ids','posts_per_page'=>-1]);return $q->found_posts;}
+ public function catalog(){
+  $q=new WP_Query(['post_type'=>'eao_course','post_status'=>'publish','posts_per_page'=>-1]);
+  ob_start();?><div class="eao"><div class="eao-head"><div><h2>دوره‌های آنلاین Erfan Academy</h2><div class="eao-sub">یادگیری آنلاین، از هرجا و در هر زمان</div></div><form method="get"><input class="eao-input" style="max-width:220px" name="eao_search" placeholder="جست‌وجوی دوره..." value="<?php echo esc_attr(sanitize_text_field(wp_unslash($_GET['eao_search']??''))); ?>"></form></div><div class="eao-grid"><?php
+  $search=sanitize_text_field(wp_unslash($_GET['eao_search']??''));
+  if($search)$q->posts=array_values(array_filter($q->posts,function($p)use($search){return stripos($p->post_title,$search)!==false||stripos($p->post_content,$search)!==false;}));
+  if($q->posts)foreach($q->posts as $p){$id=$p->ID;$cap=(int)get_post_meta($id,'_eao_capacity',true);$count=$this->enrollment_count($id);?><article class="eao-card"><h3><?php echo esc_html($p->post_title);?></h3><div><?php echo esc_html(wp_trim_words($p->post_content,25));?></div><div class="eao-meta"><span>سطح: <?php echo esc_html(get_post_meta($id,'_eao_level',true)?:'همه سطوح');?></span><span>مدرس: <?php echo esc_html(get_post_meta($id,'_eao_teacher',true)?:'تعیین نشده');?></span><span>زمان: <?php echo esc_html(get_post_meta($id,'_eao_schedule',true)?:'به‌زودی');?></span><span>شهریه: <?php echo esc_html(get_post_meta($id,'_eao_price',true)?:'رایگان');?> تومان</span><span>ظرفیت باقی‌مانده: <?php echo $cap?max(0,$cap-$count):'نامحدود';?></span></div><?php if(is_user_logged_in()):?><form method="post"><?php wp_nonce_field('eao_enroll');?><input type="hidden" name="eao_action" value="enroll"><input type="hidden" name="course_id" value="<?php echo $id;?>"><button class="eao-btn" type="submit">درخواست ثبت‌نام</button></form><?php else:?><a class="eao-btn" href="<?php echo esc_url(wp_login_url(get_permalink()));?>">ورود برای ثبت‌نام</a><?php endif;?></article><?php }else echo '<div class="eao-card">هنوز دوره‌ای منتشر نشده است.</div>';?></div></div><?php return ob_get_clean();
  }
- public function save_settings() { if(!current_user_can('manage_options')) wp_die('Forbidden'); }
+ public function my_courses(){
+  if(!is_user_logged_in())return '<div class="eao">برای مشاهده دوره‌ها وارد حساب شوید.</div>';
+  $q=new WP_Query(['post_type'=>'eao_booking','post_status'=>'publish','author'=>get_current_user_id(),'posts_per_page'=>-1]);
+  ob_start();?><div class="eao"><h2>دوره‌های من</h2><?php if($q->have_posts()):?><div class="eao-grid"><?php while($q->have_posts()):$q->the_post();$course=absint(get_post_meta(get_the_ID(),'_eao_course',true));$status=get_post_meta(get_the_ID(),'_eao_booking_status',true);?><div class="eao-card"><h3><?php echo esc_html(get_the_title($course));?></h3><p>وضعیت: <?php echo esc_html($status==='active'?'فعال':'در انتظار پرداخت/تأیید');?></p><?php if($status==='active'){$link=get_post_meta($course,'_eao_meeting',true);if($link)echo '<a class="eao-btn" rel="noopener" target="_blank" href="'.esc_url($link).'">ورود به کلاس آنلاین</a>';}?></div><?php endwhile;wp_reset_postdata();?></div><?php else:?><p>هنوز برای دوره‌ای ثبت‌نام نکرده‌اید.</p><?php endif;?></div><?php return ob_get_clean();
+ }
+ public function portal(){
+  if(!is_user_logged_in())return '<div class="eao"><h2>ورود به آکادمی</h2><p>برای ورود و ثبت‌نام از سامانه کاربران وردپرس استفاده کنید.</p><a class="eao-btn" href="'.esc_url(wp_login_url(get_permalink())).'">ورود</a> <a class="eao-btn alt" href="'.esc_url(wp_registration_url()).'">ثبت‌نام</a></div>';
+  $u=wp_get_current_user();$roles=(array)$u->roles;$role=in_array('administrator',$roles,true)?'مدیر':(in_array('eao_teacher',$roles,true)?'مدرس':(in_array('eao_support',$roles,true)?'پشتیبانی':'دانش‌آموز'));
+  $menus=['دانش‌آموز'=>['دوره‌های من','کلاس‌های آنلاین','آزمون‌ها و تکالیف','پیشرفت و گواهی‌ها','پشتیبانی'],'مدرس'=>['دوره‌های من','هنرجویان','کلاس‌های زنده','حضور و غیاب','آزمون و تکلیف'],'مدیر'=>['مدیریت کاربران','مدیریت مدرس‌ها','دوره‌های آنلاین','ثبت‌نام‌ها','گزارش‌ها','تنظیمات اتصال'],'پشتیبانی'=>['تیکت‌های جدید','در انتظار پاسخ','گفت‌وگوها','مشکلات پرداخت']];
+  ob_start();?><div class="eao"><div class="eao-head"><div><h2>پنل <?php echo esc_html($role);?></h2><div class="eao-sub">خوش آمدی، <?php echo esc_html($u->display_name);?></div></div><a class="eao-btn alt" href="<?php echo esc_url(wp_logout_url(get_permalink()));?>">خروج</a></div><div class="eao-stats"><div class="eao-stat">نقش کاربری<strong><?php echo esc_html($role);?></strong></div><div class="eao-stat">دوره‌های ثبت‌نام‌شده<strong><?php echo count(get_posts(['post_type'=>'eao_booking','author'=>$u->ID,'numberposts'=>-1]));?></strong></div><div class="eao-stat">نوع آموزش<strong>فقط آنلاین</strong></div></div><div class="eao-grid"><?php foreach($menus[$role] as $m):?><div class="eao-card"><h3><?php echo esc_html($m);?></h3><p class="eao-sub">بخش اختصاصی <?php echo esc_html($role);?></p><?php if($m==='دوره‌های من'):?><a class="eao-btn" href="<?php echo esc_url(add_query_arg('view','my-courses',get_permalink()));?>">مشاهده</a><?php elseif($m==='دوره‌های آنلاین'):?><a class="eao-btn" href="<?php echo esc_url(admin_url('edit.php?post_type=eao_course'));?>">مدیریت</a><?php else:?><span class="eao-sub">زیرساخت این بخش در حال توسعه اتصال سرویس است.</span><?php endif;?></div><?php endforeach;?></div><?php if(isset($_GET['view'])&&$_GET['view']==='my-courses')echo $this->my_courses();?></div><?php return ob_get_clean();
+ }
+ public function admin_menu(){add_menu_page('Erfan Academy','Erfan Academy','manage_options','eao-home',[$this,'admin_page'],'dashicons-welcome-learn-more',58);}
+ public function settings(){register_setting('eao_settings','eao_zarinpal_merchant');register_setting('eao_settings','eao_bbb_endpoint');register_setting('eao_settings','eao_bbb_secret');}
+ public function admin_page(){if(!current_user_can('manage_options'))return;?><div class="wrap"><h1>Erfan Academy Online</h1><p>سامانه فقط آنلاین است. دوره‌ها را از منوی «دوره‌های آنلاین» ایجاد کنید.</p><h2>اتصال سرویس‌ها</h2><form method="post" action="options.php"><?php settings_fields('eao_settings');?><table class="form-table"><tr><th>زرین‌پال Merchant ID</th><td><input class="regular-text" name="eao_zarinpal_merchant" value="<?php echo esc_attr(get_option('eao_zarinpal_merchant'));?>"></td></tr><tr><th>نشانی API سرور BigBlueButton</th><td><input class="regular-text" name="eao_bbb_endpoint" value="<?php echo esc_attr(get_option('eao_bbb_endpoint'));?>"></td></tr><tr><th>Secret سرور BigBlueButton</th><td><input type="password" autocomplete="new-password" class="regular-text" name="eao_bbb_secret" value="<?php echo esc_attr(get_option('eao_bbb_secret'));?>"></td></tr></table><?php submit_button('ذخیره تنظیمات');?></form><div class="notice notice-warning"><p>ذخیره این مقادیر به‌تنهایی به معنی اتصال درگاه یا ساخت اتاق BBB نیست. اتصال API و آزمون تراکنش/جلسه باید در مرحله بعد تکمیل شود. بانک ملت نیز نیازمند قرارداد و اطلاعات پذیرندگی است.</p></div><h2>شورت‌کدها</h2><p><code>[erfan_academy_courses]</code> فهرست دوره‌ها</p><p><code>[erfan_academy_portal]</code> پنل کاربری</p><p><code>[erfan_academy_my_courses]</code> دوره‌های من</p></div><?php }
 }
-new Erfan_Academy_Portal();
+register_activation_hook(__FILE__,function(){ $p=new Erfan_Academy_Online();$p->roles();$p->types();flush_rewrite_rules();});
+register_deactivation_hook(__FILE__,function(){flush_rewrite_rules();});
+new Erfan_Academy_Online();
